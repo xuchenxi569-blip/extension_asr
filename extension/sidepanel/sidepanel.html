@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Extension ASR</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+  <header class="header">
+    <h1>Extension ASR</h1>
+    <span id="status" class="status status--idle">空闲</span>
+  </header>
+
+  <div class="toolbar">
+    <button id="btn-start" type="button">开始转写</button>
+    <button id="btn-stop" type="button" disabled>停止</button>
+    <button id="btn-restart" type="button" title="卡住时点这个：先彻底清理上一次，再重新开始">重新转写</button>
+    <button id="btn-copy" type="button" disabled>复制全文</button>
+    <button id="btn-export-md" type="button" disabled>保存为 Markdown…</button>
+  </div>
+
+  <p id="hint" class="hint">
+    打开视频网页后，点「开始转写」。也可以点工具栏图标，会同时打开本面板并开始。
+  </p>
+
+  <label class="ws-field">
+    录哪个标签页
+    <select id="target-select">
+      <option value="auto">自动（正在播声音的网页）</option>
+    </select>
+  </label>
+  <p id="target-tab" class="hint">当前页面：检测中…</p>
+
+  <label class="ws-field">
+    识别模型
+    <select id="model-select">
+      <option value="">跟随服务端设置</option>
+    </select>
+  </label>
+
+  <label class="ws-field">
+    转写服务地址
+    <input id="ws-url" type="text" value="http://127.0.0.1:8787" spellcheck="false" />
+  </label>
+
+  <section id="subtitle-list" class="subtitle-list" aria-live="polite"></section>
+
+  <script type="module" src="sidepanel.js"></script>
+</body>
+</html>

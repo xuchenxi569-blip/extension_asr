@@ -1,0 +1,35 @@
+body {
+  margin: 0;
+  width: 280px;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+}
+
+.popup {
+  padding: 16px;
+}
+
+.popup h1 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.popup p {
+  margin: 0 0 12px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+#open-panel {
+  width: 100%;
+  padding: 8px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+#open-panel:hover {
+  background: #1d4ed8;
+}

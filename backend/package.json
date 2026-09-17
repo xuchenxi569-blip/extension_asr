@@ -1,0 +1,23 @@
+{
+  "name": "extension-asr-backend",
+  "version": "0.1.0",
+  "description": "Extension ASR 网关：WebSocket 代理流式语音识别",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "probe": "node scripts/probe-asr.mjs",
+    "probe:models": "node scripts/probe-models.mjs",
+    "probe:terms": "node scripts/probe-terms.mjs",
+    "lint": "node --check src/index.js && node --check src/asr/mock.js && node --check src/asr/openai-compatible.js && node --check src/asr/models.js && node --check src/asr/terms.js && node --check src/pcm-to-wav.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": ["asr", "websocket", "chrome-extension"],
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
