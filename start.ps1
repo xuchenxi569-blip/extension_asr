@@ -1,4 +1,4 @@
-﻿# 一键启动本机转写服务：开 backend。8787 被占就改用后面的门。
+# 一键启动本机转写服务：开 backend。8787 被占就改用后面的门。
 $ErrorActionPreference = 'Stop'
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
