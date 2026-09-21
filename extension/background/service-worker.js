@@ -239,7 +239,7 @@ function prepareHttp() {
   return getAsrBaseUrl().then(async (url) => {
     const origin = await pingAsr(url);
     if (!origin) {
-      throw new Error('本机转写服务没开着。请双击项目里的 start.bat，看到 8787 后再点「开始转写」。');
+      throw new Error('本机转写服务没开着。请双击项目里的 start.bat，看到「服务已开好」后再点「开始转写」。');
     }
     await warmupAsr(origin);
     return origin;

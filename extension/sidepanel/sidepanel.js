@@ -422,8 +422,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 async function init() {
   await loadWsUrl();
-  pingAsr(wsInput.value || DEFAULT_WS).catch(() => {});
-  loadModels(wsInput.value || DEFAULT_WS).catch(() => {});
+  const origin = await pingAsr(wsInput.value || DEFAULT_WS).catch(() => '');
+  if (origin) wsInput.value = origin;
+  loadModels(origin || wsInput.value || DEFAULT_WS).catch(() => {});
   await refreshTarget();
   const [noticeData, sessionData] = await Promise.all([
     chrome.storage.session.get('uiNotice'),

@@ -3,7 +3,9 @@
  * Chrome 会拦一部分「网页 → 电脑自己」的请求；扩展里要多试几种方式。
  */
 
-const DEFAULT_ORIGIN = 'http://127.0.0.1:8787';
+const DEFAULT_PORT = 8787;
+const PORT_SCAN = 20;
+const DEFAULT_ORIGIN = `http://127.0.0.1:${DEFAULT_PORT}`;
 
 export function trimBase(url) {
   return String(url || '').replace(/\/+$/, '');
@@ -102,27 +104,41 @@ export async function fetchLoopback(url, init = {}) {
 
 async function isAsrBackend(origin) {
   const res = await fetchLoopback(asrPath(origin, '/'), {
-    signal: AbortSignal.timeout(2500),
+    signal: AbortSignal.timeout(800),
   });
   const { data, html } = await readJsonBody(res);
   return Boolean(res.ok && !html && data?.service === 'extension-asr-backend');
 }
 
+function candidateOrigins(baseUrl) {
+  const list = [asrOrigin(baseUrl)];
+  for (let port = DEFAULT_PORT; port <= DEFAULT_PORT + PORT_SCAN; port += 1) {
+    list.push(`http://127.0.0.1:${port}`);
+  }
+  return list;
+}
+
 /** 找到真正的转写服务地址。成功返回 origin，失败返回空字符串。 */
 export async function pingAsr(baseUrl) {
-  const candidates = [asrOrigin(baseUrl), DEFAULT_ORIGIN];
+  const candidates = [];
   const seen = new Set();
-  for (const origin of candidates) {
+  for (const origin of candidateOrigins(baseUrl)) {
     if (seen.has(origin)) continue;
     seen.add(origin);
-    try {
-      if (await isAsrBackend(origin)) {
-        if (origin !== asrOrigin(baseUrl)) rememberOrigin(origin);
-        return origin;
-      }
-    } catch { /* 试下一个 */ }
+    candidates.push(origin);
   }
-  return '';
+
+  const hits = await Promise.all(candidates.map(async (origin) => {
+    try {
+      if (await isAsrBackend(origin)) return origin;
+    } catch { /* 试下一个 */ }
+    return '';
+  }));
+
+  const found = hits.find(Boolean);
+  if (!found) return '';
+  if (found !== asrOrigin(baseUrl)) rememberOrigin(found);
+  return found;
 }
 
 /** 问本机有哪些实测可用的识别模型。失败返回空清单，界面自己兜底。 */
@@ -170,24 +186,16 @@ async function tryStartAt(origin, model) {
 }
 
 export async function startAsrSession(baseUrl, model = '') {
-  const configured = asrOrigin(baseUrl);
-  const first = await tryStartAt(configured, model);
+  const origin = (await pingAsr(baseUrl)) || asrOrigin(baseUrl);
+  const first = await tryStartAt(origin, model);
   if (first.sessionId) return first;
 
-  if (configured !== DEFAULT_ORIGIN) {
-    const fallback = await tryStartAt(DEFAULT_ORIGIN, model);
-    if (fallback.sessionId) {
-      rememberOrigin(DEFAULT_ORIGIN);
-      return fallback;
-    }
-  }
-
   if (first.error === 'html' || !first.error) {
-    throw new Error(`填的地址 ${configured} 返回的是网页，不是转写服务。请把侧边栏地址改成 ${DEFAULT_ORIGIN}`);
+    throw new Error(`填的地址 ${origin} 返回的是网页，不是转写服务。请先运行 start.bat。`);
   }
   throw new Error(
     /failed to fetch/i.test(first.error)
-      ? `连不上转写服务 ${configured}。请确认 start.bat 窗口还开着，地址是 ${DEFAULT_ORIGIN}`
+      ? `连不上转写服务。请确认 start.bat 窗口还开着。`
       : `转写服务已开着，但创建会话失败：${first.error}`
   );
 }

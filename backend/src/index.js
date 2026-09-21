@@ -28,7 +28,8 @@ function loadEnv() {
 
 loadEnv();
 
-const PORT = Number(process.env.PORT) || 8787;
+const PREFERRED_PORT = Number(process.env.PORT) || 8787;
+const PORT_RANGE = 20;
 const ASR_PROVIDER = process.env.ASR_PROVIDER || 'mock';
 const CHUNK_MS = 800;
 const httpSessions = new Map();
@@ -111,7 +112,7 @@ function getHttpSession(id) {
 }
 
 const server = createServer(async (req, res) => {
-  const url = new URL(req.url || '/', `http://127.0.0.1:${PORT}`);
+  const url = new URL(req.url || '/', 'http://127.0.0.1');
   const pathname = url.pathname.replace(/\/{2,}/g, '/') || '/';
 
   if (req.method === 'OPTIONS') {
@@ -179,54 +180,56 @@ const server = createServer(async (req, res) => {
   sendJson(res, req, 404, { error: 'NOT_FOUND' });
 });
 
-const wss = new WebSocketServer({ server, path: '/ws/transcribe' });
+function attachWebSocket() {
+  const wss = new WebSocketServer({ server, path: '/ws/transcribe' });
 
-wss.on('connection', (ws) => {
-  let audioOffsetMs = 0;
-  let asr;
-  try {
-    asr = createAsrSession();
-  } catch (err) {
-    ws.send(JSON.stringify({ type: 'error', text: err.message }));
-    ws.close();
-    return;
-  }
+  wss.on('connection', (ws) => {
+    let audioOffsetMs = 0;
+    let asr;
+    try {
+      asr = createAsrSession();
+    } catch (err) {
+      ws.send(JSON.stringify({ type: 'error', text: err.message }));
+      ws.close();
+      return;
+    }
 
-  let queue = Promise.resolve();
+    let queue = Promise.resolve();
 
-  ws.on('message', (data, isBinary) => {
-    queue = queue.then(async () => {
-      if (!isBinary) {
-        try {
-          const msg = JSON.parse(data.toString());
-          if (msg.type === 'session.start') audioOffsetMs = 0;
-          if (msg.type === 'session.stop') {
-            const events = await asr.close();
-            for (const event of events) {
-              if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(event));
+    ws.on('message', (data, isBinary) => {
+      queue = queue.then(async () => {
+        if (!isBinary) {
+          try {
+            const msg = JSON.parse(data.toString());
+            if (msg.type === 'session.start') audioOffsetMs = 0;
+            if (msg.type === 'session.stop') {
+              const events = await asr.close();
+              for (const event of events) {
+                if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(event));
+              }
             }
-          }
-        } catch { /* ignore */ }
-        return;
-      }
+          } catch { /* ignore */ }
+          return;
+        }
 
-      audioOffsetMs += CHUNK_MS;
-      const pcm = data instanceof ArrayBuffer ? Buffer.from(data) : data;
-      const events = await asr.processChunk(pcm, audioOffsetMs);
-      for (const event of events) {
-        if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(event));
-      }
-    }).catch((err) => {
-      if (ws.readyState === ws.OPEN) {
-        ws.send(JSON.stringify({ type: 'error', text: err.message || String(err) }));
-      }
+        audioOffsetMs += CHUNK_MS;
+        const pcm = data instanceof ArrayBuffer ? Buffer.from(data) : data;
+        const events = await asr.processChunk(pcm, audioOffsetMs);
+        for (const event of events) {
+          if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(event));
+        }
+      }).catch((err) => {
+        if (ws.readyState === ws.OPEN) {
+          ws.send(JSON.stringify({ type: 'error', text: err.message || String(err) }));
+        }
+      });
+    });
+
+    ws.on('close', () => {
+      asr?.close?.();
     });
   });
-
-  ws.on('close', () => {
-    asr?.close?.();
-  });
-});
+}
 
 setInterval(() => {
   const cutoff = Date.now() - 30 * 60 * 1000;
@@ -238,8 +241,33 @@ setInterval(() => {
   }
 }, 60 * 1000).unref();
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`[extension-asr-backend] listening on http://127.0.0.1:${PORT}`);
-  console.log(`[extension-asr-backend] HTTP: POST http://127.0.0.1:${PORT}/transcribe`);
-  console.log(`[extension-asr-backend] ASR_PROVIDER=${ASR_PROVIDER}`);
-});
+function listenOnAvailablePort(preferred) {
+  const last = preferred + PORT_RANGE;
+  let port = preferred;
+
+  const onError = (err) => {
+    if (err.code === 'EADDRINUSE' && port < last) {
+      console.warn(`[extension-asr-backend] 端口 ${port} 被占用，改试 ${port + 1}`);
+      port += 1;
+      server.listen(port, '127.0.0.1');
+      return;
+    }
+    console.error(`[extension-asr-backend] 无法启动：${err.message}`);
+    process.exit(1);
+  };
+
+  server.on('error', onError);
+  server.listen(port, '127.0.0.1', () => {
+    server.off('error', onError);
+    const actual = server.address().port;
+    if (actual !== preferred) {
+      console.warn(`[extension-asr-backend] ${preferred} 被占用，已改用 ${actual}`);
+    }
+    attachWebSocket();
+    console.log(`[extension-asr-backend] listening on http://127.0.0.1:${actual}`);
+    console.log(`[extension-asr-backend] HTTP: POST http://127.0.0.1:${actual}/transcribe`);
+    console.log(`[extension-asr-backend] ASR_PROVIDER=${ASR_PROVIDER}`);
+  });
+}
+
+listenOnAvailablePort(PREFERRED_PORT);
